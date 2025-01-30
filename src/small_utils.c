@@ -732,6 +732,27 @@ void print_bubble(int fg, int bg, int offset, void* item, const char* item_type,
                    (void*)item,rs,
                    bg_col,rs,nl);
         }
+    }else if(item_type[0] == 'x'){
+        char size = item_type[1]!='\0' ? (item_type[1]-48) : 8;
+        if(offset>0)
+        {
+            printf("%*c\033[38;2;%sm%s\033[48;2;%sm\033[38;2;%sm%s %0*X %s\033[38;2;%sm%s%s",offset,' ',
+                   bg_col,rs,
+                   bg_col,fg_col,bld,
+                   size,size==2 ? *(unsigned char*)item : size==4 ? *(unsigned short*)item : *(unsigned int*)item,rs,
+                   bg_col,rs,nl);
+        }else if(offset<0){
+            printf("\033[%dD\033[48;2;%sm\033[38;2;%sm%s %0*X %s\033[38;2;%sm%s%s",( offset*-1 ),
+                   bg_col,fg_col,bld,
+                   size,size==2 ? *(unsigned char*)item : size==4 ? *(unsigned short*)item : *(unsigned int*)item,rs,
+                   bg_col,rs,nl);
+        }else{
+            printf("\033[38;2;%sm%s\033[48;2;%sm\033[38;2;%sm%s %0*X %s\033[38;2;%sm%s%s",
+                   bg_col,rs,
+                   bg_col,fg_col,bld,
+                   size,size==2 ? *(unsigned char*)item : size==4 ? *(unsigned short*)item : *(unsigned int*)item,rs,
+                   bg_col,rs,nl);
+        }
     }
 }
 

@@ -12,8 +12,8 @@ OBJS   := $(CFILES:./%.c=$(OBJDIR)/%.o)
 DFILES := $(CFILES:./%.c=$(OBJDIR)/%.d)
 
 INC_DIRS:= $(foreach dir, $(SRCDIR), -I$(dir)) -I$(INCDIR)
-LIB_DIRS:= -L$(LIBDIR) 
-LDFLAGS := -g3 -glldb -lkernel32 
+LIB_DIRS:= -L$(LIBDIR) -L./src
+LDFLAGS := -g3 -glldb -luser32 
 CFLAGS :=  -O0 -g3 -glldb -Wall -Wextra -Werror -Wno-unused-variable -std=c23
 DFLAG  := -MMD -MP
 

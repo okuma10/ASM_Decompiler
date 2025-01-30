@@ -1,14 +1,19 @@
 #pragma once
 
-
+#ifndef _TABLES
+#define _TABLES 1
 unsigned char  opCodes[] = {34,     35,    40 };
 char*          opNames[] = {"MOV", "MOV", "MOV"};
 unsigned char regCodes[] = { 0,   1,   2,   3,   4,   5,   6,   7};
 unsigned char modCodes[] = {0, 1, 2, 3};
-char*   modNames[] = {"mem","mem8", "mem16", "reg"};
-char* regNamesW0[] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
-char* regNamesW1[] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
-char* memNames0[]  = {"BX + SI", "BX + DI", "BP + SI", "BP + DI", "SI", "DI", "BP", "BX"};
+char*   modNames[]  = {"mem","mem8", "mem16", "reg"};
+char  subRegAccess[]= {  0,   0,   0,   0,    1,   1,   1,  1  };
+char  subRegId[]    = {  0,   1,   2,   3,    0,   1,   2,  3  };
+char* regNamesW0[]  = {"AL","CL","DL","BL", "AH", "CH","DH","BH"};
+char* regNamesW1[]  = {"AX","CX","DX","BX","SP","BP","SI","DI"};
+char* segRegNames[] = {"ES","CS","SS","DS"};
+char* memNames0[]   = {"BX + SI", "BX + DI", "BP + SI", "BP + DI", "SI", "DI", "BP", "BX"};
+
 
 typedef enum instructions{
     op_AAA = 0,
@@ -126,6 +131,7 @@ typedef enum instructions{
     op_ENTER,
     op_LEAVE
 }instructions;
+
 
 char* instructionNames[] = {
     "AAA",
@@ -263,3 +269,6 @@ unsigned char cmdIDTable[16*16]={
     /* E */   op_JMP,  op_JMP,   op_JMP,  op_JMP,  op_IN,   op_IN,   op_OUT,  op_OUT,  op_CALL,  op_JMP,   op_JMP,   op_JMP,   op_IN,    op_IN,    op_OUT,   op_OUT,
     /* F */   op_PRFX, op_UNK,  op_PRFX,  op_PRFX, op_HLT,  op_CMC,  op_TEST, op_TEST, op_CLC,   op_STC,   op_CLI,   op_STI,   op_CLD,   op_STD,   op_INC,   op_INC,
     };
+
+#endif
+
