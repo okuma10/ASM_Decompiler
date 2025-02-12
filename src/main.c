@@ -13,6 +13,19 @@
 
 
 int main() {
+    /* i16 result = 15; */
+    /* i16 val = 0 ; */
+    /* i16 tmp_val = (result>>1)&0x5555; */
+    /* i16 parity_counter = 0; */
+    /* val = result - tmp_val; */
+    /* tmp_val = val&0x3333; */
+    /* val = tmp_val; */
+    /* tmp_val = (val>>2)&0x3333; */
+    /* val += tmp_val; */
+    /* parity_counter = ((val*0x1111)>>12) & 0x0F; */
+    /* printf("P counter = %d\n",parity_counter); */
+    /**/
+    /* return 0; */
     set_color_console();
     asm_host host = {0};
     asm_host* pHost = &host;
@@ -20,9 +33,15 @@ int main() {
     printRegFull(pHost);
     /* return 0;  */
 
+    // Endian check
+    int* endian_check = malloc(sizeof(int));
+    *endian_check = 1;
+    if(((char*)endian_check)[3] == 1) printf("little endian\n");
+    else printf("big endian\n");
+
 
     FILE* f;
-    char* rFP = "././resources/listing_0045_challenge_register_movs";
+    char* rFP = "././resources/listing_0047_challenge_flags";
     char fFP[MAX_PATH];
     #ifdef _WIN32
         _fullpath(fFP,rFP,MAX_PATH);

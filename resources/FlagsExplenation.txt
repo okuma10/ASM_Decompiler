@@ -1,0 +1,82 @@
+1. Carry Flag (CF) - checks the result
+Purpose: CF is set when an unsigned borrow occurs (i.e. when DST is less than SRC in unsigned arithmetic).
+We calculate the artithmetic function on a larger memory(eg.32bit) so we can capture the carry flag(in case of 8bits it's the 9th bit, 16bits it's 17th).GPT suggests there is a difference in casting to larger ints...where the sign matters(uint vs int) I'll try with ints and see how it goes.
+I think GPT was off, the easy way to capture the carry flag is simply to check if dst value's topmost bit is different from the result. -> dst (0)0000001[1]-2 = result (1)1111111[-1] for 8bit values
+Example:
+Operands: DST = 0x05 (5), SRC = 0x08 (8)
+Calculation: 5 – 8 = –3
+	In 8‑bit two’s complement, –3 is represented as 0xFD.
+Flag Outcome:
+	CF = 1 (since 5 < 8, a borrow is required)
+Other flags (ZF, SF, etc.) are updated accordingly (ZF = 0, SF = 1).
+
+
+2. Zero Flag (ZF) - checks the result
+Purpose: ZF is set if the subtraction result is zero.
+We check the result. If the result is 0 , we switch on the ZF and turn off the SF,CF,PF
+Example:
+Operands: DST = 0x10 (16), SRC = 0x10 (16)
+Calculation: 16 – 16 = 0
+Result is 0x00.
+Flag Outcome:
+	ZF = 1 (result is zero)
+	CF = 0 (no borrow)
+	SF = 0 (zero is nonnegative)
+	PF will be set (since 0x00 has an even number (zero) of 1’s).
+
+3. Sign Flag (SF) -checks the result
+Purpose: SF reflects the sign of the result (set if the most significant bit is 1, indicating a negative result in two’s complement).
+We check the most significant bit (no.8 in 8bits and no.16 in 16bits).
+Example:
+Operands: DST = 0x03 (3), SRC = 0x05 (5)
+Calculation: 3 – 5 = –2
+	In 8‑bit two’s complement, –2 is 0xFE (binary 1111 1110).
+Flag Outcome:
+	SF = 1 (since the result’s MSB is 1, indicating a negative result)
+	CF = 1 (because 3 < 5, a borrow occurred)
+	ZF = 0 (result is not zero)
+
+4. Overflow Flag (OF) - checks src and dst values, then checks the result
+Purpose: OF is set when the signed result cannot be represented in the given number of bits—that is, when the operation causes a signed overflow.
+We compare the DST and SRC's sign bits, if they are (different-SUB or same-ADD) we check the result and the DST 's sign bits. If they are different the resulting arithmetic caused an overflow thus we turn on the OF flag.
+Example:
+Operands: DST = 0x80 (in 8‑bit two’s complement, 0x80 represents –128), SRC = 0x01 (1)
+Calculation: (–128) – 1 = –129
+	In 8‑bit arithmetic, –129 wraps around to 0x7F (which represents +127).
+Flag Outcome:
+	OF = 1 (a signed overflow occurred because subtracting 1 from –128 produced a positive result)
+	SF = 0 (result 0x7F is positive)
+	CF = 0 (unsigned: 0x80 (128) – 0x01 (1) = 127 with no borrow, since 128 ≥ 1)
+	ZF = 0 (result is nonzero)
+
+5. Auxiliary Carry Flag (AF) - checks the values and result
+Purpose: AF is set if there is a borrow from the lower nibble (bit 3) to bit 4 during the subtraction. This flag is especially relevant for Binary Coded Decimal (BCD) operations.
+
+We extract the lower 4 bits of 8bit numbers(and the 12 bits in 16bit numbers)-> perform the math operation (ADD, SUB/CMP) and check if the result has it's 4-th bit set(12-th bit set in 16bits)
+
+Example:
+Operands: DST = 0x00 (0), SRC = 0x01 (1)
+Calculation: 0 – 1 = –1
+	In 8‑bit two’s complement, –1 is 0xFF.
+	When subtracting the lower nibbles (0x0 – 0x1), a borrow is needed.
+Flag Outcome:
+	AF = 1 (a borrow from the lower nibble occurred)
+	CF = 1 (overall borrow occurred)
+	ZF = 0 (result is not zero)
+	SF = 1 (result is negative)
+
+6. Parity Flag (PF)
+Purpose: PF is set if the least significant byte of the result contains an even number of 1’s.
+
+Example:
+Operands: DST = 0x05 (5), SRC = 0x02 (2)
+Calculation: 5 – 2 = 3
+	In hexadecimal, 3 is 0x03, whose binary form is 0000 0011.
+	The binary result (0x03) contains two 1’s.
+Flag Outcome:
+	PF = 1 (because two is an even number of 1’s)
+	ZF = 0 (result is not zero)
+	SF = 0 (result is positive)
+
+
+1111000000000011

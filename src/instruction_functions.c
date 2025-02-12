@@ -55,20 +55,20 @@ void decodeBinary(asm_host* host, u8* binary_buffer, u64 buf_len){
         /* printf("%03d -(%02X %s)- (%03d) ",instruction_number, dbg_byte, OBJ2BIN(dbg_byte),instructionID); */
         
         u32 offset = 0;
-        /* if(instruction_number > 19 )break; */
+        if(instruction_number > 20 )break;
         switch(instructionID){
             case op_MOV:
                 offset = decodeMOV(host, reader);
                 /* THIS_SPOT("Offset is %d", offset); */
                 break;
             case op_ADD:
-                offset = decodeADD(reader);
+                offset = decodeADD(host, reader);
                 break;
             case op_SUB:
-                offset = decodeSUB(reader);
+                offset = decodeSUB(host, reader);
                 break;
             case op_CMP:
-                offset = decodeCMP(reader);
+                offset = decodeCMP(host, reader);
                 break;
             case op_JMP:
                 offset = decodeJMP(reader);
@@ -93,7 +93,6 @@ void decodeBinary(asm_host* host, u8* binary_buffer, u64 buf_len){
 
 
 u32 decodeMOV(asm_host* host, u8* instruction_pos){
-    UNUSED host;
     my_print_context movcon = {0};
     movcon.col1  = 0xF44336FF;
     movcon.text1 = 0x212121FF;
@@ -240,9 +239,13 @@ u32 decodeMOV(asm_host* host, u8* instruction_pos){
             sub_reg_id = w ? REG_X : subRegAccess[reg];
             
             if(w){
-                data = *(i16*)(instruction_pos+1);
+                i16 tmp =*(i16*)(instruction_pos+1);
+                data = 0;   //Fix for order of 16bit values because they are flipped on my computer (Low|High) instead of (High|Low) if we map the same memory to 8bit[2]
+                data |= (tmp &0x00FF) << 8;
+                data |= (tmp &0xFF00) >> 8;
+
                 instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512 - instPrintBufOffset,
-                                      "the 16 bit value %d ", data);
+                                      "the 16 bit value %d ", tmp);
             }else{
                 data = (i16)*(i8*)(instruction_pos+1);
                 instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512 - instPrintBufOffset,
@@ -304,8 +307,7 @@ u32 decodeMOV(asm_host* host, u8* instruction_pos){
 
 
 
-u32 decodeADD(u8* instruction_pos){
-    UNUSED instruction_pos;
+u32 decodeADD(asm_host* host, u8* instruction_pos){
     my_print_context addcon={.offset=0,.col1=0x64DD17FF, .text1=0x424242FF, .col2=0, .text2=0};
     u32 offset = 2;
     u8 hi = (*instruction_pos & 0xF0)>>4;
@@ -313,7 +315,16 @@ u32 decodeADD(u8* instruction_pos){
     char memNameBuf[255]    ={0};
     char instPrintBuf[512]  ={0};
     u32  instPrintBufOffset = 0;
-    
+    i16  data       =  0;
+    i16  dst_data   =  0;
+    i16  src_data   =  0;
+    i32  dst_id     = -1;
+    i32  src_id     = -1;
+    u8   dst_access = -1;
+    u8   src_access = -1;
+    i16  result     =  0;
+    i16  arth_op    =  0;
+    UNUSED dst_id,UNUSED arth_op, UNUSED dst_access;
 
     switch(hi){
         case 0:
@@ -321,6 +332,7 @@ u32 decodeADD(u8* instruction_pos){
                                           "ADD ");
             switch(lo>>2){
                 case 0:
+                    /* THIS_SPOT(0); */
                     u8 d = (lo & 2)>>1;
                     u8 w =  lo & 1;
                     u8 byte2 = *(instruction_pos + 1);
@@ -332,9 +344,11 @@ u32 decodeADD(u8* instruction_pos){
                     // Set the correct offset(the return) for the next instruction
                     u8 modoffsets[] = {2,3,4,2};
                     offset = modoffsets[mod];
+                    
                     /* THIS_SPOT("offset %d", offset); */
                     switch(mod){
                         case 0:
+                            THIS_SPOT(0);
                             snprintf(memNameBuf, 255,"[ %s ]",memNames0[rm]);
                             instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
                                                     "to %s val in %s ",d?(w?regNamesW1[reg]:regNamesW0[reg]): memNameBuf,
@@ -342,6 +356,7 @@ u32 decodeADD(u8* instruction_pos){
                             );
                             break;
                         case 1:
+                            THIS_SPOT(0);
                             u8 sign = displ & 128;
                             if(displ>0) snprintf(memNameBuf, 255,"[ %s %s %d ]",memNames0[rm],sign > 0 ? "-": "+", displ);
                             else snprintf(memNameBuf, 255,"[ %s ]",memNames0[rm]);
@@ -353,7 +368,29 @@ u32 decodeADD(u8* instruction_pos){
                         case 2:
                             THIS_SPOT(NULL);
                             break;
-                        case 3: 
+                        case 3: // RM is REG
+                            /* THIS_SPOT(0); */
+                            
+                            if(d){ //DST is REG
+                                dst_id      = w ? reg   : subRegId[reg];
+                                dst_access  = w ? REG_X : subRegAccess[reg];  
+                                src_id      = w ? rm    : subRegId[rm];
+                                src_access  = w ? REG_X : subRegAccess[rm];
+                            }else{ // SRC is REG
+                                dst_id      = w ? rm    : subRegId[rm];
+                                dst_access  = w ? REG_X : subRegAccess[rm];  
+                                src_id      = w ? reg   : subRegId[reg];
+                                src_access  = w ? REG_X : subRegAccess[reg];
+                            }
+
+
+                            GetFromReg(host, src_id, src_access, &src_data);
+                            GetFromReg(host, dst_id, dst_access, &dst_data);
+                            result = dst_data + src_data;
+                                                                //             arithmetic       bit
+                                                                //             operation        size
+                            SetFlagReg(host, dst_data, src_data, (i32)result | (ARTH_ADD)<<28 | (w)<<24);
+
                             snprintf(memNameBuf, 255,"[ %s ]",w?regNamesW1[rm]:regNamesW0[rm]);
                             instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
                                                     "to %s val in %s ",d?(w?regNamesW1[reg]:regNamesW0[reg]): memNameBuf,
@@ -364,6 +401,7 @@ u32 decodeADD(u8* instruction_pos){
                     }
                     break;
                 case 1:
+                    THIS_SPOT(0);
                     w = lo & 1;
                     u8 wOffsets[2] = {2,3};
                     offset = wOffsets[w];
@@ -390,37 +428,66 @@ u32 decodeADD(u8* instruction_pos){
         case 1:
             THIS_SPOT("ADD with carry RegMem/ACCUMULATOR");
             break;
-        case 8:
+        case 8: // Special grouping of ADD,OR,ADC,SBB,AND,SUB,XOR,CMP \\ Immediate?
             addcon.col1 = 0xBDBDBDFF;
-            addcon.text1 = 0x424242FF;
+            addcon.text1 = 0x424242FF;// Just coloring
+
+            // Getting info from instruction
             u8 s = (lo & 2)>>1;
             u8 w =  lo & 1;
             u8 byte2 = *(instruction_pos + 1);
             u8 mod   = (byte2 & 192)>>6;
             u8 ext   = (byte2 & 56 )>>3;
             u8 rm    = (byte2 & 7);
+            
+            // Get displacement value
             i32 displ = mod == 1 ? *(i8*)(void*)(instruction_pos+2):
                         mod == 2 ? *(i16*)(void*)(instruction_pos+2): 
                         (mod == 0 && rm == 6) ? *(i16*)(void*)(instruction_pos+2) : 0;
+            u8 size_check = w&&s ? 1 : 0; // when w&&s is 1 size is 8bit else it's 16bit
             // When we have Instructions with S bit, then 0 means the data is 16bits, when it's 1 it means data is 8bit but it's sign bit is extended so it fits 16bits.
             //  This works only when W is 1, because it means that the register is 16 bit. So the value must be properly fitted. This is only for the CPU not us, but it
             //  affects the offset and the size we must retrive from the instruction_pos
-            i32 data =  mod == 1 ? ( (w&&s==0) ? *(i16*)(void*)(instruction_pos+3) & 0x00FF: *(i8*)(void*)(instruction_pos+3) & 0x00FF ) :
-                        mod == 2 ? ( (w&&s==0) ? *(i16*)(void*)(instruction_pos+4) & 0x00FF: *(i8*)(void*)(instruction_pos+4) & 0x00FF) :
-                        (w&&s==0) ? *(i16*)(void*)(instruction_pos+2) & 0x00FF: *(i8*)(void*)(instruction_pos+2) & 0x00FF;
+            //                                                                          ↓- I'm doing this because of the i32 type that data is. If i16 or i8 is negative then the negative bit will flood the remaning 4 bytes and will change the value;
+            i32 data =  mod == 1 ? ( (size_check==0) ? *(i16*)(void*)(instruction_pos+3) : *(i8*)(void*)(instruction_pos+3) ) :
+                        mod == 2 ? ( (size_check==0) ? *(i16*)(void*)(instruction_pos+4) : *(i8*)(void*)(instruction_pos+4) ) :
+                                     (size_check==0) ? *(i16*)(void*)(instruction_pos+2) : *(i8*)(void*)(instruction_pos+2) ;
+            
+
+            // Set offset
             u8 offsetTable[]={3,4,5,3,
                               4,5,6,4};
             offset = offsetTable[w*4+mod];
             offset -= w ? (s ? 1 : 0) : 0;// Adjusting the offset based on the Signed(S) bit
-            /* THIS_SPOT("Offset = %d",offset); */
-
-            /* THIS_SPOT("%d|%d| %d|%d|%d",s, w, mod, ext,rm); */
             
-            u8    extTypes[8] = {0,1,2,3,4,5,6,7};
-            char* extNames[]  = {"ADD","OR","ADC","SBB","AND","SUB","XOR","CMP"};
-            if(mod == 3){
+            u8    extTypes[8] = {  0,        1,    2,    3,    4,     5,      6,      7}; //based on 8086
+            char* extNames[]  = {"ADD",    "OR", "ADC","SBB","AND", "SUB",   "XOR", "CMP"};
+            u8    extOps[]    = {ARTH_ADD, -1,    -1,   -1,    -1,  ARTH_SUB, -1,   ARTH_SUB};
+            
+            arth_op = extOps[ext];
+
+            if(mod == 3){ // RM is REG
+                /* THIS_SPOT("RM is REG"); */
                 snprintf(memNameBuf,255, " %s ", w ? regNamesW1[rm]:regNamesW0[rm]);
-            }else if(mod == 0){
+                dst_id      = w ? rm : subRegId[rm];
+                dst_access  = w ? REG_X : subRegAccess[rm];
+
+                GetFromReg(host, dst_id,dst_access, &dst_data);
+                src_data = data; // I think i32 is too much for what we need
+                switch(extOps[ext]){
+                    case ARTH_ADD:
+                        result = dst_data + src_data;
+                        break;
+                    case ARTH_SUB:
+                        result = dst_data - src_data;
+                        break;
+                    default:break;
+                }
+                                                    // add to result arithmetic op and size(w)
+                SetFlagReg(host, dst_data, src_data, ( (i32)result&0x0000FFFF ) | extOps[ext]<<28 | w<<24);
+                /* THIS_SPOT(" %d + %d = %d",dst_data,src_data,result); */
+
+            }else if(mod == 0){ // RM is MEM
                 u8 sign = displ & 128;
                 if(rm !=6){
                     if(displ)
@@ -445,14 +512,22 @@ u32 decodeADD(u8* instruction_pos){
         default:
             break;
     }
-
+    
+    i16 write_result=0;
+    write_result |= (result&0xFF00)>>8;
+    write_result |= (result&0x00FF)<<8;
+    MovToRegister(host, dst_id, dst_access, write_result);
+    /* SetFlagReg(host, dst_data, src_data, result); */
+    
     print_bubble(addcon.text1,addcon.col1,-1, instPrintBuf,"s", 0);
+    printReg(host, dst_id, dst_access);
+    printReg(host, REG_FLAG, REG_X);
     return offset;
 }
 
 
 
-u32 decodeSUB(u8* instruction_pos){
+u32 decodeSUB(asm_host* host, u8* instruction_pos){
     UNUSED instruction_pos;
     my_print_context subcon = {0};
     subcon.col1 = 0xAEEA00FF;
@@ -463,17 +538,24 @@ u32 decodeSUB(u8* instruction_pos){
     char memNameBuf[255]={0};
     char instPrintBuf[512] = {0};
     u32  instPrintBufOffset=0;
+    i16 data1=0;
+    i16 data2=0;
+    u32 reg_id = -1;
+    u8  reg_access = -1;
     instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
                                     "SUB ");
+
     switch(hi){
         case 1:
             THIS_SPOT(NULL);
             break;
         case 2:
+            /* THIS_SPOT(0); */
             switch(lo>>2){
                 case 0:THIS_SPOT(NULL);break;
                 case 1:THIS_SPOT(NULL);break;
-                case 2:
+                case 2: // SUB to REG/RM fom RM/REG - takes the value at DST and substracts SRC and writes the result to DST
+                    /* THIS_SPOT(0); */
                     u8 d = (lo & 2)>>1;
                     u8 w =  lo & 1;
                     u8 byte2 = *(instruction_pos + 1);
@@ -487,26 +569,83 @@ u32 decodeSUB(u8* instruction_pos){
                     offset = modoffsets[mod];
                     /* THIS_SPOT("offset %d", offset); */
                     switch(mod){
-                        case 0:
+                        case 0:// RM is memory address with no offset
                             snprintf(memNameBuf, 255,"[ %s ]",memNames0[rm]);
                             instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
                                                     "to %s val in %s ",d?(w?regNamesW1[reg]:regNamesW0[reg]): memNameBuf,
                                                     d?(memNameBuf):(w?regNamesW1[reg]:regNamesW0[reg]) );
                             break;
-                        case 1:
+                        case 1: // RM is memory address with 8bit offset
                             u8 sign = displ & 128;
                             if(displ>0) snprintf(memNameBuf, 255,"[ %s %s %d ]",memNames0[rm],sign > 0 ? "-": "+", displ);
                             else snprintf(memNameBuf, 255,"[ %s ]",memNames0[rm]);
-                    instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
+
+                            instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
                                                     "to %s val in %s ",d?(w?regNamesW1[reg]:regNamesW0[reg]): memNameBuf,
                                                     d?(memNameBuf):(w?regNamesW1[reg]:regNamesW0[reg]));
                             break;
-                        case 2:
+                        case 2: // RM is memory address with 16 bit offset
                             THIS_SPOT(NULL);
                             break;
-                        case 3: 
+                        case 3: // RM is REG 
+                            /* THIS_SPOT(0); */
+                            reg_id = w ? reg: subRegId[reg] ;
+                            reg_access = w ? REG_X : subRegAccess[reg];
+                            u32 rm_id  = w ? rm: subRegId[rm];
+                            u8  rm_access = w ? REG_X : subRegAccess[rm];
+                            i16 tmp_data = 0;
+
+                            // ────────────────────────────── Get and SUB Data ───────────────────────────
+                            if(d){ //DST is REG
+                                GetFromReg( host, reg_id, reg_access, &data1);
+                                GetFromReg( host, rm_id, rm_access, &data2);
+
+                                tmp_data = data1 - data2;
+                                SetFlagReg(host,data1,data2, (i32)tmp_data | (ARTH_SUB << 28) | ((w) << 24));
+                                /* THIS_SPOT("%d - %d = %d",data1,data2,tmp_data); */
+                                /* THIS_SPOT("%s",OBJ2BIN(tmp_data)); */
+                                // Result is Big endian, but MovToRegister accepts little endian
+                                data1 = 0;
+                                data1 |= (tmp_data & 0x00FF)<<8;
+                                data1 |= (tmp_data & 0xFF00)>>8;
+
+                                MovToRegister(host, reg_id,reg_access, data1);
+                                
+                            }else{ // SRC is REG
+                                GetFromReg( host, rm_id, rm_access, &data1);
+                                GetFromReg( host, reg_id, reg_access, &data2);
+
+                                tmp_data = data1 - data2;
+                                i32 result = (i32)tmp_data & 0x000FFFFF;                    // W
+                                SetFlagReg(host,data1,data2, result | (ARTH_SUB)<<28 | ((w) << 24));
+                                /* THIS_SPOT("%d - %d = %d",data1,data2,tmp_data); */
+                                /* THIS_SPOT("%s",OBJ2BIN(tmp_data)); */
+                                // Result is Big endian, but MovToRegister accepts little endian
+                                data1 = 0;
+                                data1 |= (tmp_data & 0x00FF)<<8;
+                                data1 |= (tmp_data & 0xFF00)>>8;
+
+                                MovToRegister(host, rm_id,rm_access, data1);
+                                reg_id      = rm_id; // Hack fix for print
+                                reg_access  = rm_access; // Hack fix for print
+                            }
+
+                            /* THIS_SPOT("%s",OBJ2BIN(data1)); */
+                            /* if(data1 == 0){ */
+                            /*     THIS_SPOT(0); */
+                            /*     host->reg->x.flag |=  REG_FLG_ZF; // Turn on Zero flag */
+                            /*     host->reg->x.flag &= ~REG_FLG_SF; // Trun off Sign flag */
+                            /* }else{ */
+                            /*     host->reg->x.flag &= ~REG_FLG_ZF; // Turn off Zero flag */
+                            /*     if(data1&0x0080){ // Turn on or off Sign flag if Sign flag is enabled in data1 */
+                            /*         host->reg->x.flag |= REG_FLG_SF; */
+                            /*     }else{ */
+                            /*         host->reg->x.flag &= ~REG_FLG_SF; */
+                            /*     } */
+                            /* } */
+
                             snprintf(memNameBuf, 255,"[ %s ]",w?regNamesW1[rm]:regNamesW0[rm]);
-                    instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
+                            instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset, 512-instPrintBufOffset,
                                                     "to %s val in %s ",d?(w?regNamesW1[reg]:regNamesW0[reg]): memNameBuf,
                                                     d?(memNameBuf):(w?regNamesW1[reg]:regNamesW0[reg]) );
                             break;
@@ -514,6 +653,7 @@ u32 decodeSUB(u8* instruction_pos){
                     }
                     break;
                 case 3:
+                    THIS_SPOT(0);
                     w = lo & 1;
                     u8 wOffsets[2] = {2,3};
                     offset = wOffsets[w];
@@ -541,11 +681,13 @@ u32 decodeSUB(u8* instruction_pos){
     }
     
     print_bubble(subcon.text1, subcon.col1,-1, instPrintBuf, "s", 0);
+    printReg(host, reg_id,reg_access);
+    printReg(host, REG_FLAG,REG_X);
     return offset;
 }
 
 
-u32 decodeCMP(u8* instruction_pos){
+u32 decodeCMP(asm_host* host, u8* instruction_pos){
     UNUSED instruction_pos;
     my_print_context cmpcon = {.offset=0, .col1=0x2979FFFF, .text1=0xFFF8E1FF, .col2=0, .text2=0};
 
@@ -555,7 +697,10 @@ u32 decodeCMP(u8* instruction_pos){
     char memNameBuf[255]={0};
     char instPrintBuf[512];
     u32  instPrintBufOffset=0;
-    
+    u32 reg_id = -1;
+    u8  reg_access = -1;
+
+
     instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset,512-instPrintBufOffset,
                                    "CMP ");
     switch(lo>>2){
@@ -593,7 +738,31 @@ u32 decodeCMP(u8* instruction_pos){
                 case 2:
                     THIS_SPOT(NULL);
                     break;
-                case 3: 
+                case 3: // RM is Rregistry 
+                    i16 data1 = 0;
+                    i16 data2 = 0;
+                    i16 tmp_data = 0;
+                    reg_id = w ? reg: subRegId[reg] ;
+                    reg_access = w ? REG_X : subRegAccess[reg];
+                    u32 rm_id  = w ? rm: subRegId[rm];
+                    u8  rm_access = w ? REG_X : subRegAccess[rm];
+                    
+                    // ────────────────────────────── Get and SUB Data ───────────────────────────
+                    if(d){ //DST is REG
+                        GetFromReg( host, reg_id, reg_access, &data1);
+                        GetFromReg( host, rm_id,  rm_access, &data2);
+
+                        tmp_data = data1 - data2;
+                        SetFlagReg(host, data1, data2, ((i32)tmp_data&0x000FFFFF) | (ARTH_SUB << 28) | (w << 24));
+                        
+                    }else{ // SRC is REG
+                        GetFromReg( host, rm_id, rm_access, &data1);
+                        GetFromReg( host, reg_id, reg_access, &data2);
+
+                        tmp_data = data1 - data2;
+                        SetFlagReg(host,data1,data2, ((i32)tmp_data&0x000FFFFF) | (ARTH_SUB << 28) | (w << 24));
+                    }
+
                     snprintf(memNameBuf, 255,"[ %s ]",w?regNamesW1[rm]:regNamesW0[rm]);
                     instPrintBufOffset += snprintf(instPrintBuf+instPrintBufOffset,512-instPrintBufOffset,
                                             "to %s val in %s ",d?(w?regNamesW1[reg]:regNamesW0[reg]): memNameBuf,
@@ -627,6 +796,7 @@ u32 decodeCMP(u8* instruction_pos){
     }
     
     print_bubble(cmpcon.text1, cmpcon.col1,-1, instPrintBuf,"s",0);
+    printReg(host, REG_FLAG,REG_X);
     return offset;
 }
 

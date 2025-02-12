@@ -24,7 +24,7 @@
 void decodeBinary(asm_host* host, u8* binary_buffer, u64 buf_len);
 
 u32 decodeMOV(asm_host* host, u8* instruction_pos);
-u32 decodeADD(u8* instruction_pos);
-u32 decodeSUB(u8* instruction_pos);
-u32 decodeCMP(u8* instruction_pos);
+u32 decodeADD(asm_host* host, u8* instruction_pos);
+u32 decodeSUB(asm_host* host, u8* instruction_pos);
+u32 decodeCMP(asm_host* host, u8* instruction_pos);
 u32 decodeJMP(u8* instruction_pos);
